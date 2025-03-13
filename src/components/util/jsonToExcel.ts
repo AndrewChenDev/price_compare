@@ -48,7 +48,7 @@ export function jsonToExcel(data: CompareArrays, newfileData: FileData): void {
   const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
 
   // Call the function to save the file
-  saveAsExcelFile(excelBuffer, newfileData.filename + "_價格變化.xlsx");
+  saveAsExcelFile(excelBuffer, `${newfileData.currentSheet}_價格變化.xlsx`);
 }
 
 // Helper function to check if a value is a valid price
