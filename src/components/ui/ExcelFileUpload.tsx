@@ -9,16 +9,39 @@ import { useCallback } from "react";
 import * as XLSX from "xlsx";
 import { StartColumnIndexSelection } from "@/components/ui/StartColumnIndexSelection";
 
+/**
+ * Props interface for the ExcelFileUpload component.
+ */
 interface ExcelFileUploadProps {
+  /** Optional label to display for this upload section */
   label?: string;
-  fileAtom: PrimitiveAtom<FileData | null>; // Correct type for the atom
+  /** Jotai atom to store the Excel file data */
+  fileAtom: PrimitiveAtom<FileData | null>;
+  /** Jotai atom to store the starting row index for data (after headers) */
   fileDataStartIndexAtom: PrimitiveAtom<number | undefined>;
+  /** Jotai atom to store the selected identifier column (e.g., product ID) */
   fileColumnAtom: PrimitiveAtom<string>;
+  /** Jotai atom to store the selected price column */
   filePriceColumnAtom: PrimitiveAtom<string>;
+  /** Optional atom to sync identifier column selection with another component */
   siblingColumnAtom?: PrimitiveAtom<string>;
+  /** Optional atom to sync price column selection with another component */
   siblingPriceColumnAtom?: PrimitiveAtom<string>;
 }
 
+/**
+ * Component for uploading and configuring Excel files for comparison.
+ *
+ * This component handles:
+ * 1. File upload and parsing
+ * 2. Sheet selection within multi-sheet Excel files
+ * 3. Identifying the starting row for data
+ * 4. Selecting columns for product identification and price comparison
+ * 5. Displaying a preview of the Excel data
+ *
+ * It also provides synchronization with a sibling component (for comparing two files)
+ * by optionally mirroring column selections.
+ */
 export default function ExcelFileUpload({
   label = "",
   fileAtom,
@@ -28,13 +51,16 @@ export default function ExcelFileUpload({
   siblingColumnAtom,
   siblingPriceColumnAtom,
 }: ExcelFileUploadProps) {
+  // Access state from Jotai atoms
   const [fileData, setFileData] = useAtom(fileAtom);
   const [fileColumn, setFileColumn] = useAtom(fileColumnAtom);
   const [filePriceColumn, setFilePriceColumn] = useAtom(filePriceColumnAtom);
   const [fileDataStartIndex, setFileDataStartIndex] = useAtom(
     fileDataStartIndexAtom,
   );
-  // Use sibling atoms if provided
+
+  // Use sibling atoms if provided (for syncing selections between components)
+  // eslint-disable-next-line is needed because useAtom is called conditionally
   const [siblingColumn, setSiblingColumn] = siblingColumnAtom
     ? // eslint-disable-next-line react-hooks/rules-of-hooks
       useAtom(siblingColumnAtom)
@@ -44,9 +70,15 @@ export default function ExcelFileUpload({
       useAtom(siblingPriceColumnAtom)
     : [null, null];
 
+  /**
+   * Handles changes to the identifier column selection.
+   * If this is the first component to have a column selected and the sibling
+   * component has no selection yet, it will sync the selection to the sibling.
+   */
   const handleColumnChange = useCallback(
     (column: string) => {
       setFileColumn(column);
+      // If sibling has no selection yet, sync this selection to it
       if (setSiblingColumn && siblingColumn === "") {
         setSiblingColumn(column);
       }
@@ -54,9 +86,14 @@ export default function ExcelFileUpload({
     [setFileColumn, setSiblingColumn, siblingColumn],
   );
 
+  /**
+   * Handles changes to the price column selection.
+   * Works similar to handleColumnChange but for the price column.
+   */
   const handlePriceColumnChange = useCallback(
     (price: string) => {
       setFilePriceColumn(price);
+      // If sibling has no selection yet, sync this selection to it
       if (setSiblingPriceColumn && siblingPriceColumn === "") {
         setSiblingPriceColumn(price);
       }
@@ -64,6 +101,19 @@ export default function ExcelFileUpload({
     [setFilePriceColumn, setSiblingPriceColumn, siblingPriceColumn],
   );
 
+  /**
+   * Processes the selected sheet from an Excel workbook.
+   *
+   * This function handles:
+   * 1. Reading raw data from the sheet
+   * 2. Special handling for date cells (converting to YYYY-MM-DD format)
+   * 3. Filtering out empty rows
+   * 4. Determining the maximum column count
+   *
+   * @param workbook - The Excel workbook object from SheetJS
+   * @param sheetName - The name of the sheet to process
+   * @returns Object containing headers, processed rows, and maximum column count
+   */
   const processSheetData = (workbook: XLSX.WorkBook, sheetName: string) => {
     const worksheet = workbook.Sheets[sheetName];
 
@@ -101,16 +151,34 @@ export default function ExcelFileUpload({
       }),
     );
 
+    // Filter out empty rows and ensure at least 2 columns per row
     const rows = processedData.filter(
       (row) =>
         row.some((cell) => String(cell).trim().length > 0) && row.length > 1,
     );
+
+    // Get headers from the first row, or empty array if no rows
     const headers = rows.length > 0 ? rows[0] : [];
+
+    // Calculate the maximum number of columns in any row
     const maxColumns = Math.max(...jsonData.map((row) => row.length));
 
     return { headers, rows, maxColumns };
   };
 
+  /**
+   * Handles the file upload process when a user selects an Excel file.
+   *
+   * This function:
+   * 1. Reads the selected file as an ArrayBuffer
+   * 2. Parses it using SheetJS
+   * 3. Processes the first sheet to extract data
+   * 4. Updates the file data state
+   * 5. Resets selection states when a new file is uploaded
+   *
+   * @param event - The file input change event
+   * @param setFileData - Function to update the file data state
+   */
   const handleFileUpload = useCallback(
     (
       event: React.ChangeEvent<HTMLInputElement>,
@@ -129,6 +197,7 @@ export default function ExcelFileUpload({
             firstSheetName,
           );
 
+          // Update file data state with the parsed Excel data
           setFileData({
             workbook,
             sheets: workbook.SheetNames,
@@ -150,6 +219,18 @@ export default function ExcelFileUpload({
     [setFileDataStartIndex, setFileColumn, setFilePriceColumn],
   );
 
+  /**
+   * Handles the sheet change when a user selects a different sheet in the Excel file.
+   *
+   * This function:
+   * 1. Processes the newly selected sheet
+   * 2. Updates the file data state with new sheet data
+   * 3. Resets index and column selections
+   *
+   * @param sheetName - The name of the selected sheet
+   * @param fileData - The current file data state
+   * @param setFileData - Function to update the file data state
+   */
   const handleSheetChange = useCallback(
     (
       sheetName: string,
