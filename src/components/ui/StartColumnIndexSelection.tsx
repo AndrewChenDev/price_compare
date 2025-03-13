@@ -27,17 +27,23 @@ export function StartColumnIndexSelection({
         const newHeaders = fileData?.rows[selectedIndex]; // Get the headers from the selected row
         if (newHeaders) {
           setFileDataStartIndex(selectedIndex);
-          setFileData({ ...fileData, headers: newHeaders });
+          setFileData({
+            ...fileData,
+            headers: newHeaders,
+          });
         }
       }}
-      value={`${fileDataStartIndex}`}
+      value={
+        fileDataStartIndex !== undefined ? `${fileDataStartIndex}` : undefined
+      }
     >
       <SelectTrigger className="w-full mb-4">
         <SelectValue placeholder="Select Header Index" />
       </SelectTrigger>
       <SelectContent>
         {fileData &&
-          Array.from(fileData.rows).map((value, index) => (
+          fileData.rows.length > 0 &&
+          fileData.rows.map((_, index) => (
             <SelectItem key={index} value={`${index}`}>
               {index + 1}
             </SelectItem>

@@ -31,7 +31,9 @@ export default function ExcelFileUpload({
   const [fileData, setFileData] = useAtom(fileAtom);
   const [fileColumn, setFileColumn] = useAtom(fileColumnAtom);
   const [filePriceColumn, setFilePriceColumn] = useAtom(filePriceColumnAtom);
-  const [fileDataStartIndex] = useAtom(fileDataStartIndexAtom);
+  const [fileDataStartIndex, setFileDataStartIndex] = useAtom(
+    fileDataStartIndexAtom,
+  );
   // Use sibling atoms if provided
   const [siblingColumn, setSiblingColumn] = siblingColumnAtom
     ? // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -103,7 +105,7 @@ export default function ExcelFileUpload({
       (row) =>
         row.some((cell) => String(cell).trim().length > 0) && row.length > 1,
     );
-    const headers = rows[0];
+    const headers = rows.length > 0 ? rows[0] : [];
     const maxColumns = Math.max(...jsonData.map((row) => row.length));
 
     return { headers, rows, maxColumns };
@@ -121,7 +123,6 @@ export default function ExcelFileUpload({
         reader.onload = (e) => {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array", cellDates: true });
-          console.log(workbook);
           const firstSheetName = workbook.SheetNames[0];
           const { headers, rows, maxColumns } = processSheetData(
             workbook,
@@ -137,11 +138,16 @@ export default function ExcelFileUpload({
             maxColumns,
             filename: fileName,
           });
+
+          // Reset selections when a new file is uploaded
+          setFileDataStartIndex(0);
+          setFileColumn("");
+          setFilePriceColumn("");
         };
         reader.readAsArrayBuffer(file);
       }
     },
-    [],
+    [setFileDataStartIndex, setFileColumn, setFilePriceColumn],
   );
 
   const handleSheetChange = useCallback(
@@ -157,17 +163,26 @@ export default function ExcelFileUpload({
           sheetName,
         );
 
+        // Update the file data with the new sheet information
+        // Explicitly preserve the filename property
         setFileData({
-          workbook,
-          sheets: workbook.SheetNames,
+          ...fileData,
           currentSheet: sheetName,
           headers,
           rows,
           maxColumns,
+          filename: fileData.filename, // Preserve the filename
         });
+
+        // Reset the data start index to 0 when switching sheets
+        setFileDataStartIndex(0);
+
+        // Reset column selections as they might be invalid in the new sheet
+        setFileColumn("");
+        setFilePriceColumn("");
       }
     },
-    [],
+    [setFileDataStartIndex, setFileColumn, setFilePriceColumn],
   );
 
   return (
@@ -202,7 +217,7 @@ export default function ExcelFileUpload({
             fileDataStartIndexAtom={fileDataStartIndexAtom}
           />
           {/*Column selection*/}
-          {fileDataStartIndex >= 0 && (
+          {fileDataStartIndex !== undefined && fileDataStartIndex >= 0 && (
             <div className="flex gap-4 mb-4">
               <div className="flex-1 flex flex-col gap-4">
                 <Label className={""} htmlFor={"column-select"}>
